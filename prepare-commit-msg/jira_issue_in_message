@@ -1,0 +1,40 @@
+#!/bin/sh
+#
+# Automatically add branch name and branch description to every commit message except merge commit.
+#
+
+COMMIT_EDITMSG=$1
+
+BRANCH_PATTERN="\(^[A-Z]\{1,10\}-[0-9]\{2,\}\)\(.*\)"
+
+uppercase() {
+    args=$*
+    echo $(echo ${args:0:1} | tr  '[a-z]' '[A-Z]')${args:1}
+}
+
+addBranchName() {
+  branch_name_full=$(git branch | grep '*' | sed 's/* //')
+  type=$(uppercase $branch_name_full | cut -d '/' -f 1)
+  branch_name=$(echo $branch_name_full | cut -d '/' -f 2)
+  id=$(echo $branch_name | sed -e "s/$BRANCH_PATTERN/\1/")
+  desc=$(uppercase $(echo $branch_name | sed -e "s/$BRANCH_PATTERN/\2/" | sed -e 's/[-_]/ /g' | sed -e 's/^[[:space:]]*//'))
+
+  commit_head=$(head -n 1 $COMMIT_EDITMSG)
+  commit_rest=$(tail -n +3 $COMMIT_EDITMSG)
+
+  # Formatujemy wiadomosc
+  echo "$id $commit_head\n\n- $id $desc ($type)\n$commit_rest" > $COMMIT_EDITMSG
+}
+
+case "${1}" in
+    --about )
+        echo "Creates commit message based on branch name (for JIRA issues)."
+        ;;
+    * )
+        MERGE=$(cat $COMMIT_EDITMSG|grep -i 'merge'|wc -l)
+
+        if [ $MERGE -eq 0 ] ; then
+            addBranchName
+        fi
+        ;;
+esac
