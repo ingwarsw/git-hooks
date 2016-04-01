@@ -7,12 +7,12 @@ COMMIT_EDITMSG=$1
 
 BRANCH_PATTERN="\(^[A-Z]\{1,10\}-[0-9]\{2,\}\)\(.*\)"
 
-uppercase() {
+function uppercase() {
     args=$*
     echo $(echo ${args:0:1} | tr  '[a-z]' '[A-Z]')${args:1}
 }
 
-addBranchName() {
+function addBranchName() {
   branch_name_full=$(git branch | grep '*' | sed 's/* //')
   type=$(uppercase $branch_name_full | cut -d '/' -f 1)
   branch_name=$(echo $branch_name_full | cut -d '/' -f 2)
@@ -26,14 +26,24 @@ addBranchName() {
   echo "$id $commit_head\n\n- $id $desc ($type)\n$commit_rest" > $COMMIT_EDITMSG
 }
 
+function shouldAddName() {
+    if [[ $BRANCH_NAME =~ *"no branch"* ]] ; then
+        return 0
+    fi
+    MERGE=$(cat $COMMIT_EDITMSG|grep -i 'merge'|wc -l)
+    if [ $MERGE -ne 0 ] ; then
+        return 0
+    fi
+    return 1
+}
+
 case "${1}" in
     --about )
         echo "Creates commit message based on branch name (for JIRA issues)."
         ;;
     * )
-        MERGE=$(cat $COMMIT_EDITMSG|grep -i 'merge'|wc -l)
 
-        if [ $MERGE -eq 0 ] ; then
+        if shouldAddName ; then
             addBranchName
         fi
         ;;
