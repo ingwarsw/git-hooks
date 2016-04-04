@@ -4,6 +4,7 @@
 #
 
 COMMIT_EDITMSG=$1
+COMMIT_TYPE=$2
 
 BRANCH_PATTERN="\(^[A-Z]\{1,10\}-[0-9]\{2,\}\)\(.*\)"
 
@@ -12,29 +13,42 @@ function uppercase() {
     echo $(echo ${args:0:1} | tr  '[a-z]' '[A-Z]')${args:1}
 }
 
+branch_name_full=$(git branch | grep '*' | sed 's/* //')
+type=$(uppercase $branch_name_full | cut -d '/' -f 1)
+branch_name=$(echo $branch_name_full | cut -d '/' -f 2)
+id=$(echo $branch_name | sed -e "s/$BRANCH_PATTERN/\1/")
+desc=$(uppercase $(echo $branch_name | sed -e "s/$BRANCH_PATTERN/\2/" | sed -e 's/[-_]/ /g' | sed -e 's/^[[:space:]]*//'))
+
+commit_head=$(head -n 1 $COMMIT_EDITMSG)
+commit_rest=$(tail -n +3 $COMMIT_EDITMSG)
+
+extra=""
+
 function addBranchName() {
-  branch_name_full=$(git branch | grep '*' | sed 's/* //')
-  type=$(uppercase $branch_name_full | cut -d '/' -f 1)
-  branch_name=$(echo $branch_name_full | cut -d '/' -f 2)
-  id=$(echo $branch_name | sed -e "s/$BRANCH_PATTERN/\1/")
-  desc=$(uppercase $(echo $branch_name | sed -e "s/$BRANCH_PATTERN/\2/" | sed -e 's/[-_]/ /g' | sed -e 's/^[[:space:]]*//'))
-
-  commit_head=$(head -n 1 $COMMIT_EDITMSG)
-  commit_rest=$(tail -n +3 $COMMIT_EDITMSG)
-
-  # Formatujemy wiadomosc
-  echo "$id $commit_head\n\n- $id $desc ($type)\n$commit_rest" > $COMMIT_EDITMSG
+    if shouldFormatMessage ; then
+        echo "$id $commit_head\n\n- $id $desc ($type)\n$commit_rest" > $COMMIT_EDITMSG
+    fi
+    echo "# Extra info:
+# - type [$COMMIT_TYPE]
+# - extra [$extra]" >> $COMMIT_EDITMSG
 }
 
-function shouldAddName() {
+function shouldFormatMessage() {
+    CONTAINS_ID=$(cat $COMMIT_EDITMSG | grep $id | wc -l)
+    if [ $CONTAINS_ID -ne 0 ] ; then
+        extra="id count $CONTAINS_ID"
+        return 1
+    fi
     if [[ $BRANCH_NAME =~ *"no branch"* ]] ; then
-        return 0
+        extra="no branch"
+        return 1
     fi
-    MERGE=$(cat $COMMIT_EDITMSG|grep -i 'merge'|wc -l)
+    MERGE=$(cat $COMMIT_EDITMSG | grep -i 'merge' | wc -l)
     if [ $MERGE -ne 0 ] ; then
-        return 0
+        extra="merge $MERGE"
+        return 1
     fi
-    return 1
+    return 0
 }
 
 case "${1}" in
@@ -43,8 +57,6 @@ case "${1}" in
         ;;
     * )
 
-        if shouldAddName ; then
-            addBranchName
-        fi
+        addBranchName
         ;;
 esac
